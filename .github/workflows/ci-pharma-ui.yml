@@ -93,10 +93,20 @@ jobs:
           name: coverage-report
           path: coverage/
 
+      - name: Normalize Sonar token
+        env:
+          SONAR_TOKEN_INPUT: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          sonar_token="$(printf '%s' "$SONAR_TOKEN_INPUT" | tr -d '\r\n')"
+          if [[ -z "$sonar_token" ]]; then
+            echo "::error::SONAR_TOKEN is empty after removing line breaks."
+            exit 1
+          fi
+          echo "::add-mask::$sonar_token"
+          printf 'SONAR_TOKEN=%s\n' "$sonar_token" >> "$GITHUB_ENV"
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v3
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
             -Dsonar.organization=${{ vars.SONAR_ORG }}
@@ -105,6 +115,10 @@ jobs:
             -Dsonar.tests=src
             -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      - name: Clear Sonar token
+        if: always()
+        run: echo "SONAR_TOKEN=" >> "$GITHUB_ENV"
 
       - name: npm audit (HIGH/CRITICAL — fail)
         run: npm audit --audit-level=high
