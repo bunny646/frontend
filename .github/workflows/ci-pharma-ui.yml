@@ -94,6 +94,7 @@ jobs:
           path: coverage/
 
       - name: Normalize Sonar token
+        id: normalize_sonar_token
         env:
           SONAR_TOKEN_INPUT: ${{ secrets.SONAR_TOKEN }}
         run: |
@@ -103,10 +104,12 @@ jobs:
             exit 1
           fi
           echo "::add-mask::$sonar_token"
-          printf 'SONAR_TOKEN=%s\n' "$sonar_token" >> "$GITHUB_ENV"
+          printf 'token=%s\n' "$sonar_token" >> "$GITHUB_OUTPUT"
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          SONAR_TOKEN: ${{ steps.normalize_sonar_token.outputs.token }}
         with:
           args: >
             -Dsonar.organization=${{ vars.SONAR_ORG }}
