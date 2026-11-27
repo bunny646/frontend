@@ -107,7 +107,7 @@ jobs:
           printf 'token=%s\n' "$sonar_token" >> "$GITHUB_OUTPUT"
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v3
+        uses: SonarSource/sonarqube-scan-action@v8.3.0
         env:
           SONAR_TOKEN: ${{ steps.normalize_sonar_token.outputs.token }}
         with:
