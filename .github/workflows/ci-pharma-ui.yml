@@ -93,23 +93,10 @@ jobs:
           name: coverage-report
           path: coverage/
 
-      - name: Normalize Sonar token
-        id: normalize_sonar_token
-        env:
-          SONAR_TOKEN_INPUT: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          sonar_token="$(printf '%s' "$SONAR_TOKEN_INPUT" | tr -d '\r\n')"
-          if [[ -z "$sonar_token" ]]; then
-            echo "::error::SONAR_TOKEN is empty after removing line breaks."
-            exit 1
-          fi
-          echo "::add-mask::$sonar_token"
-          printf 'token=%s\n' "$sonar_token" >> "$GITHUB_OUTPUT"
-
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v8.3.0
+        uses: SonarSource/sonarcloud-github-action@v3
         env:
-          SONAR_TOKEN: ${{ steps.normalize_sonar_token.outputs.token }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
             -Dsonar.organization=${{ vars.SONAR_ORG }}
