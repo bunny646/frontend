@@ -1,3 +1,4 @@
+
 name: CI/CD — pharma-ui
 
 # Triggers on push to develop / release branches only.
@@ -92,10 +93,20 @@ jobs:
           name: coverage-report
           path: coverage/
 
+      - name: Normalize Sonar token
+        env:
+          SONAR_TOKEN_INPUT: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          sonar_token="$(printf '%s' "$SONAR_TOKEN_INPUT" | tr -d '\r\n')"
+          if [[ -z "$sonar_token" ]]; then
+            echo "::error::SONAR_TOKEN is empty after removing line breaks."
+            exit 1
+          fi
+          echo "::add-mask::$sonar_token"
+          printf 'SONAR_TOKEN=%s\n' "$sonar_token" >> "$GITHUB_ENV"
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v3
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
             -Dsonar.organization=${{ vars.SONAR_ORG }}
@@ -104,6 +115,10 @@ jobs:
             -Dsonar.tests=src
             -Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      - name: Clear Sonar token
+        if: always()
+        run: echo "SONAR_TOKEN=" >> "$GITHUB_ENV"
 
       - name: npm audit (HIGH/CRITICAL — fail)
         run: npm audit --audit-level=high
@@ -149,6 +164,26 @@ jobs:
       - name: Set short image tag
         id: tag
         run: echo "image_tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Diagnose OIDC token claims (temporary)
+        run: |
+          echo "repository=${GITHUB_REPOSITORY}"
+          echo "ref=${GITHUB_REF}"
+          echo "event=${GITHUB_EVENT_NAME}"
+          oidc_response="$(curl --fail --silent --show-error \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")"
+          oidc_token="$(jq -er '.value' <<< "$oidc_response")"
+          OIDC_TOKEN="$oidc_token" python3 -c '
+          import base64
+          import json
+          import os
+
+          payload = os.environ["OIDC_TOKEN"].split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+          print(json.dumps({key: claims.get(key) for key in ("iss", "aud", "sub")}, indent=2))
+          '
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v5
